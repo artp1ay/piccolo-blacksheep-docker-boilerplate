@@ -1,0 +1,6 @@
+blacksheep
+uvicorn
+jinja2
+piccolo[postgres]
+piccolo_admin
+requests
