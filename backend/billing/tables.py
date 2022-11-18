@@ -1,11 +1,15 @@
 from piccolo.table import Table
 from piccolo.apps.user.tables import BaseUser
-from piccolo.columns import ForeignKey, Text, Varchar, Boolean, Float, UUID, Timestamp, Integer, LazyTableReference, OnDelete
+from piccolo.columns import ForeignKey, Text, Varchar, Boolean, Float, UUID, Timestamp, Integer, LazyTableReference, OnDelete, JSONB
 from piccolo.columns.m2m import M2M
 import datetime
+from enum import Enum
 
+class DefaultFields:
+	updated_at = Timestamp(auto_update=datetime.datetime.now)
+	created_at = Timestamp(default=datetime.datetime.now)
 
-class BillingPlans(Table, tablename="billing_plans", help_text="Тарифы"):
+class BillingPlans(Table, DefaultFields, tablename="billing_plans", help_text="Тарифы"):
 	"""
 	Тарифные планы
 	"""
@@ -15,14 +19,19 @@ class BillingPlans(Table, tablename="billing_plans", help_text="Тарифы"):
 	continous = Boolean(default=False)
 	is_active = Boolean(default=False)
 	period = Integer(default=0)
-	updated_at = Timestamp(auto_update=datetime.datetime.now)
-	created_at = Timestamp(default=datetime.datetime.now)
 
 
-class Bills(Table, tablename="bills"):
+class Bills(Table, DefaultFields, tablename="bills"):
 	"""
 	Трнзакции. Каждая транзакция привязана к конкретному тарифному плану
 	"""
+	class Status(str, Enum):
+		expied = 'expired'
+		aborted = 'aborted'
+		holded = 'holded'
+		payed = 'payed'
+		in_progress = 'in progress'
+
 	uuid = UUID(unique=True)
 	owner = ForeignKey(BaseUser)
 	plan = ForeignKey(BillingPlans)
@@ -31,8 +40,12 @@ class Bills(Table, tablename="bills"):
 	holded = Boolean(default=False)
 	expired = Boolean(default=False)
 	aborted = Boolean(default=False)
-	updated_at = Timestamp(auto_update=datetime.datetime.now)
-	created_at = Timestamp(default=datetime.datetime.now)
+	payed = Boolean(default=False)
+	payment_data = JSONB(required=False)
+	next_checkout = Timestamp(required=False)
+	failed_attempts = Integer(default=0)
+	last_failed_attempt = Timestamp(required=False)
+	payment_status = Varchar(length=1, choices=Status)
 
 	@classmethod
 	def make_fail(self):
@@ -40,7 +53,7 @@ class Bills(Table, tablename="bills"):
 		self.save()
 
 
-class BillingProfile(Table, tablename="billing_profiles", help_text="Платежные профили. Можель-расширение стандартной модели пользователя."):
+class BillingProfile(Table, DefaultFields, tablename="billing_profiles", help_text="Платежные профили. Можель-расширение стандартной модели пользователя."):
 	"""
 	Расширение модели User.
 	Платежный профиль, хранит в себе данные о текущем тарифе.
@@ -53,8 +66,6 @@ class BillingProfile(Table, tablename="billing_profiles", help_text="Плате�
 	active_bill = ForeignKey(Bills, null=True)
 	plan_end = Timestamp(null=True)
 	active = Boolean(default=False)
-	updated_at = Timestamp(auto_update=datetime.datetime.now)
-	created_at = Timestamp(default=datetime.datetime.now)
 
 
 

@@ -21,44 +21,49 @@ services:
     ports:
       - 6379:6379
 
-  # rqworker:
-  #   build: ./images/rqworker
-  #   image: rqworker:latest
-  #   restart: always
-  #   container_name: rqworker
-  #   environment:
-  #     PG_HOST: database
-  #     PG_PORT: 5432
-  #   volumes:
-  #     - ./backend:/app
-  #   depends_on:
-  #     - redis
-  #   command: rq worker --with-scheduler --url redis://host.docker.internal:6379 -v
+  rqworker:
+    build: ./images/rqworker
+    image: rqworker:latest
+    restart: always
+    container_name: rqworker
+    environment:
+      PG_HOST: database
+      PG_PORT: 5432
+      PG_DB_NAME: piccolo_dev
+      PG_USER: postgres
+      PG_PASSWORD: password
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    command: rq worker --with-scheduler --url redis://host.docker.internal:6379 -v
     # deploy:
     #   replicas: 2
 
-  # rqscheduler:
-  #   build: ./images/rqscheduler
-  #   image: rqscheduler:latest
-  #   restart: always
-  #   container_name: rqscheduler
-  #   volumes:
-  #     - ./backend:/app
-  #   depends_on:
-  #     - redis
-  #   command: rqscheduler --host host.docker.internal --port 6379 -v
+  rqscheduler:
+    build: ./images/rqscheduler
+    image: rqscheduler:latest
+    restart: always
+    container_name: rqscheduler
+    environment:
+      INTERVAL: 10
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    command: rqscheduler -i 10 --host host.docker.internal --port 6379 -v
 
-  # rqmonitor:
-  #   image: pranavgupta1234/rqmonitor:latest
-  #   container_name: rqmonitor
-  #   restart: always
-  #   ports:
-  #     - 8899:8899
-  #   environment:
-  #     RQ_MONITOR_REDIS_URL: "redis://redis:6379"
-  #   depends_on:
-  #     - redis
-  #     - rqscheduler
+  rqmonitor:
+    image: pranavgupta1234/rqmonitor:latest
+    container_name: rqmonitor
+    restart: always
+    ports:
+      - 8899:8899
+    environment:
+      RQ_MONITOR_REDIS_URL: "redis://redis:6379"
+    depends_on:
+      - redis
+      - rqscheduler
 
   # rabbitmq:
   #   image: rabbitmq:3
@@ -68,40 +73,40 @@ services:
   #   ports:
   #     - 5672:5672
 
-  celery:
-    build: ./images/celery
-    container_name: celery-worker
-    restart: always
-    environment:
-      # DEBUG: 1
-      # SECRET_KEY: dbaa1_i7%*3r9-=z-+_mz4r-!qeed@(-a_r(g@k8jo8y3r27%m
-      CELERY_BROKER_URL: redis://redis
-      CELERY_RESULT_BACKEND: redis://redis
-      PYTHONPATH: /data
-    volumes:
-      - ${PWD}/backend/tasks.py:/data/tasks.py
-    working_dir: /data
-    hostname: localhost
-    user: nobody
-    command: celery -A tasks worker -l info -E
-    depends_on:
-      - redis
-
-  flower:
-    build: ./images/celery
-    container_name: flower
-    volumes:
-      - ${PWD}/backend/tasks.py:/data/tasks.py
-    working_dir: /data
-    ports:
-      - 5555:5555
-    environment:
-      CELERY_BROKER_URL: redis://redis
-      CELERY_RESULT_BACKEND: redis://redis
-    command: celery -A tasks flower
-    depends_on:
-      - redis
-      - celery
+#   celery:
+#     build: ./images/celery
+#     container_name: celery-worker
+#     restart: always
+#     environment:
+#       # DEBUG: 1
+#       # SECRET_KEY: dbaa1_i7%*3r9-=z-+_mz4r-!qeed@(-a_r(g@k8jo8y3r27%m
+#       CELERY_BROKER_URL: redis://redis
+#       CELERY_RESULT_BACKEND: redis://redis
+#       PYTHONPATH: /data
+#     volumes:
+#       - ${PWD}/backend/tasks.py:/data/tasks.py
+#     working_dir: /data
+#     hostname: localhost
+#     user: nobody
+#     command: celery -A tasks worker -l info -E
+#     depends_on:
+#       - redis
+#
+#   flower:
+#     build: ./images/celery
+#     container_name: flower
+#     volumes:
+#       - ${PWD}/backend/tasks.py:/data/tasks.py
+#     working_dir: /data
+#     ports:
+#       - 5555:5555
+#     environment:
+#       CELERY_BROKER_URL: redis://redis
+#       CELERY_RESULT_BACKEND: redis://redis
+#     command: celery -A tasks flower
+#     depends_on:
+#       - redis
+#       - celery
 
 
 

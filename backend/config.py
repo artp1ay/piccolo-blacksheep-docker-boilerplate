@@ -3,6 +3,7 @@ import os
 # Possibly environments: DEV, PROD, TEST
 ENVIRONMENT = "DEV"
 ALLOWED_HOSTS = ["*"]
+DOMAIN = 'qiobi.ru'
 
 # DATABASE
 match ENVIRONMENT:
@@ -18,6 +19,10 @@ match ENVIRONMENT:
 		PG_USER = "postgres"
 		PG_PASSWORD = "password"
 		PG_PORT = 5432
+
+# REDIS
+REDIS_HOST = "localhost"
+REDIS_PORT = 6379
 
 # SECURITY
 SECRET = "7c5bafefc8e8423e0d02a691d45e96fc8d97be55d01042a7e1b56065985bd806"
@@ -51,5 +56,12 @@ AMQ_ADDRESS="amqp://guest@localhost//"
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379
 
-#CELERY
+# CELERY
 WORKERS_QTY = 3
+
+# PAYMENTS
+
+# YOOKASSA
+YOOKASSA_ACCOUNT_ID = "959710"
+YOOKASSA_SECRET_KEY = "test_qzWXX0C6IJMAvHlgIwQsG5PaFz_QCGh-g-9KOAUj2XM"
+YOOMONEY_REDIRECT_URL = f"https://{DOMAIN}/payment_status"
