@@ -10,21 +10,24 @@ from piccolo_admin.endpoints import TableConfig
 from piccolo_api.crud.serializers import create_pydantic_model
 from piccolo.engine import engine_finder
 
-from blacksheep import Response
+from blacksheep import Response, Content
 from blacksheep.server import Application
 from blacksheep.server.bindings import FromJSON
-from blacksheep.server.responses import json
+from blacksheep.server.responses import json, status_code, bad_request, unauthorized, not_found
 from blacksheep.server.openapi.v3 import OpenAPIHandler
 from openapidocs.v3 import Info
 
 from home.endpoints import home
 from home.piccolo_app import APP_CONFIG
+from piccolo.apps.user.tables import BaseUser
 from home.tables import Task
 from billing.tables import BillingProfile, BillingPlans, Bills
 
 from yookassa import Configuration, Payment
 from pprint import pprint
 from datetime import datetime
+from helpers import PaymentsHelper, SubscriptionHelper, return_error
+from asyncpg.exceptions import UniqueViolationError
 
 # from q import queue
 # from tasks import get_tasks
@@ -33,10 +36,10 @@ from datetime import datetime
 Configuration.account_id = config.YOOKASSA_ACCOUNT_ID
 Configuration.secret_key = config.YOOKASSA_SECRET_KEY
 
-app = Application()
+app = Application(show_error_details=False)
 
 movie_config = TableConfig(
-    BillingProfile, visible_columns=[BillingProfile.id, BillingProfile.profile_name]
+    BillingProfile, visible_columns=[BillingProfile.id]
 )
 
 app.mount(
@@ -88,6 +91,26 @@ BillsModelOut: t.Any = create_pydantic_model(
         Bills.payed,
     ),
 )
+BillingProfileModelOut: t.Any = create_pydantic_model(table=BillingProfile, model_name="BillingProfileModelOut", exclude_columns=(BillingProfile.balance, BillingProfile.created_at, BillingProfile.updated_at, BillingProfile.owner))
+
+UserModelIn: t.Any = create_pydantic_model(table=BaseUser, model_name="UserModelIn", include_columns=(BaseUser.username, BaseUser.password, BaseUser.email, ))
+UserModelOut: t.Any = create_pydantic_model(table=BaseUser, model_name="UserModelOut", include_columns=(BaseUser.username, BaseUser.email, BaseUser.active))
+
+@docs(
+    summary="Create user with billing profile",
+    responses={200: "User created", 400: "User already exists"}
+)
+@app.router.post("/create_user")
+async def create_user(user_data: FromJSON[UserModelIn]) -> UserModelOut:
+    print(user_data)
+    try:
+        user = await BaseUser.create_user(**user_data.value.dict(), active=True)
+        billing_profile = BillingProfile(owner=user.id)
+        if user:
+            await billing_profile.save()
+        return UserModelOut(**user.to_dict())
+    except UniqueViolationError:
+        return status_code(400, return_error("Failed to create user. user already exists."))
 
 
 @docs(
@@ -218,6 +241,17 @@ async def payment_page(payment_uuid: str) -> BillsModelOut:
         return BillsModelOut(**bill_query.to_dict())
     except AttributeError:
         return Response(404)
+
+@docs(
+        summary="Billing profile info",
+        description="This is an description of method",
+        responses={200: "Returns a text saying OpenAPI Example"},
+        tags=["Billing & Payments"],
+    )
+@app.router.get("/billing_profile/{user_id}")
+async def profile_info(user_id: int) -> BillingProfileModelOut:
+    user_info = await BillingProfile.objects().where(BillingProfile.owner == user_id).first()
+    return BillingProfileModelOut(**user_info.to_dict())
 
 
 # Payment hook

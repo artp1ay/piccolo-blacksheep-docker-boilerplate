@@ -4,7 +4,7 @@ from piccolo.columns.column_types import Varchar
 from piccolo.columns.indexes import IndexMethod
 
 
-ID = "2022-11-18T23:48:11:844420"
+ID = "2022-11-21T18:42:06:876242"
 VERSION = "0.96.0"
 DESCRIPTION = ""
 
