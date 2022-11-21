@@ -57,7 +57,7 @@ class Bills(Table, tablename="bills"):
     )
 
 
-ID = "2022-11-18T18:06:29:490268"
+ID = "2022-11-18T23:48:12:589478"
 VERSION = "0.96.0"
 DESCRIPTION = ""
 

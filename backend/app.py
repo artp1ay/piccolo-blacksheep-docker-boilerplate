@@ -24,6 +24,7 @@ from billing.tables import BillingProfile, BillingPlans, Bills
 
 from yookassa import Configuration, Payment
 from pprint import pprint
+from datetime import datetime
 
 # from q import queue
 # from tasks import get_tasks
@@ -34,7 +35,9 @@ Configuration.secret_key = config.YOOKASSA_SECRET_KEY
 
 app = Application()
 
-movie_config = TableConfig(BillingProfile, visible_columns=[BillingProfile.id, BillingProfile.profile_name])
+movie_config = TableConfig(
+    BillingProfile, visible_columns=[BillingProfile.id, BillingProfile.profile_name]
+)
 
 app.mount(
     "/admin/",
@@ -57,6 +60,7 @@ app.router.add_get("/", home)
 async def after_start(application: Application) -> None:
     from executor import periodic_tasks
 
+
 # @app.on_stop
 # async def on_stop(application: Application) -> None:
 #     from executor import scheduler
@@ -73,12 +77,23 @@ TaskModelPartial: t.Any = create_pydantic_model(
     table=Task, model_name="TaskModelPartial", all_optional=True
 )
 
-BillsModelOut: t.Any = create_pydantic_model(table=Bills, model_name="BillsModelOut", include_columns=(Bills.uuid, Bills.created_at, Bills.plan, Bills.amount, Bills.payed,))
+BillsModelOut: t.Any = create_pydantic_model(
+    table=Bills,
+    model_name="BillsModelOut",
+    include_columns=(
+        Bills.uuid,
+        Bills.created_at,
+        Bills.plan,
+        Bills.amount,
+        Bills.payed,
+    ),
+)
+
 
 @docs(
     summary="This is an summary",
     description="This is an description of method",
-    responses={200: "Returns a text saying OpenAPI Example"}
+    responses={200: "Returns a text saying OpenAPI Example"},
 )
 @app.router.get("/tasks/")
 async def tasks() -> t.List[TaskModelOut]:
@@ -96,9 +111,7 @@ async def create_task(task_model: FromJSON[TaskModelIn]) -> TaskModelOut:
 
 
 @app.router.put("/tasks/{task_id}/")
-async def put_task(
-    task_id: int, task_model: FromJSON[TaskModelIn]
-) -> TaskModelOut:
+async def put_task(task_id: int, task_model: FromJSON[TaskModelIn]) -> TaskModelOut:
     task = await Task.objects().get(Task.id == task_id)
     if not task:
         return json({}, status=404)
@@ -140,36 +153,64 @@ async def delete_task(task_id: int):
 
 
 # Payments
-@app.router.get("/create_payment")
+@docs(
+    summary="Creating link for payment",
+    description="This is an description of method",
+    responses={200: "Returns a text saying OpenAPI Example"},
+    tags=["Billing & Payments"],
+)
+@app.router.post("/create_payment")
 async def create_bill(user_id: int = 1, plan_id: int = 1):
 
     plan_query = await BillingPlans.objects().where(BillingPlans.id == plan_id).first()
 
-    payment = Payment.create({
-        "amount": {
-            "value": plan_query.amount,
-            "currency": "RUB"
+    payment = Payment.create(
+        {
+            "amount": {"value": plan_query.amount, "currency": "RUB"},
+            "confirmation": {
+                "type": "redirect",
+                "return_url": config.YOOMONEY_REDIRECT_URL,
+            },
+            "capture": True,
+            "description": plan_query.description,
         },
-        "confirmation": {
-            "type": "redirect",
-            "return_url": config.YOOMONEY_REDIRECT_URL,
-        },
-        "capture": True,
-        "description": plan_query.description
-    }, uuid.uuid4())
+        uuid.uuid4(),
+    )
 
     # Return link for payment
     if payment.confirmation.confirmation_url:
-        create_bill = await Bills.insert(Bills(
-            uuid=payment.id,
-            plan=plan_query.id,
-            owner=user_id,
-            amount=payment.amount.value)
+        create_bill = await Bills.insert(
+            Bills(
+                uuid=payment.id,
+                plan=plan_query.id,
+                owner=user_id,
+                amount=payment.amount.value,
+            )
         )
-        return json({"status": "success", "payment_id": payment.id, "url": payment.confirmation.confirmation_url})
+
+        # Remove all unsuccessful payments by today
+        # unsucessful_payments = await Bills.delete().where(
+        #     Bills.in_progress == True,
+        #     Bills.owner == user_id,
+        # )
+
+        return json(
+            {
+                "status": "success",
+                "payment_id": payment.id,
+                "url": payment.confirmation.confirmation_url,
+            }
+        )
     else:
         return json({"error": "Usucessful status response from payment gateway"})
 
+
+@docs(
+    summary="Payment info",
+    description="This is an description of method",
+    responses={200: "Returns a text saying OpenAPI Example"},
+    tags=["Billing & Payments"],
+)
 @app.router.get("/payment/{payment_uuid}")
 async def payment_page(payment_uuid: str) -> BillsModelOut:
     try:
@@ -178,10 +219,11 @@ async def payment_page(payment_uuid: str) -> BillsModelOut:
     except AttributeError:
         return Response(404)
 
+
 # Payment hook
 @app.router.get("/payment_hook")
-async def payment_hook()
-
+async def payment_hook():
+    pass
 
 
 # Database connection pool
@@ -199,7 +241,6 @@ async def close_database_connection_pool(application):
         await engine.close_connection_pool()
     except Exception:
         print("Unable to connect to the database")
-
 
 
 app.on_start += open_database_connection_pool

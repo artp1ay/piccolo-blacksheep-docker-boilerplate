@@ -5,3 +5,7 @@ piccolo[postgres]
 piccolo_admin
 requests
 yookassa
+redis
+rq
+rq_scheduler
+loguru
