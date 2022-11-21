@@ -13,7 +13,13 @@ from piccolo.engine import engine_finder
 from blacksheep import Response, Content
 from blacksheep.server import Application
 from blacksheep.server.bindings import FromJSON
-from blacksheep.server.responses import json, status_code, bad_request, unauthorized, not_found
+from blacksheep.server.responses import (
+    json,
+    status_code,
+    bad_request,
+    unauthorized,
+    not_found,
+)
 from blacksheep.server.openapi.v3 import OpenAPIHandler
 from openapidocs.v3 import Info
 
@@ -21,11 +27,11 @@ from home.endpoints import home
 from home.piccolo_app import APP_CONFIG
 from piccolo.apps.user.tables import BaseUser
 from home.tables import Task
-from billing.tables import BillingProfile, BillingPlans, Bills
+from billing.tables import BillingProfile, BillingPlans, Bills, ActiveSubscriptions
 
 from yookassa import Configuration, Payment
 from pprint import pprint
-from datetime import datetime
+from datetime import datetime, timedelta
 from helpers import PaymentsHelper, SubscriptionHelper, return_error
 from asyncpg.exceptions import UniqueViolationError
 
@@ -38,14 +44,12 @@ Configuration.secret_key = config.YOOKASSA_SECRET_KEY
 
 app = Application(show_error_details=False)
 
-movie_config = TableConfig(
-    BillingProfile, visible_columns=[BillingProfile.id]
-)
+movie_config = TableConfig(BillingProfile, visible_columns=[BillingProfile.id])
 
 app.mount(
     "/admin/",
     create_admin(
-        [Task, BillingProfile, BillingPlans, Bills]
+        [Task, BillingProfile, BillingPlans, Bills, ActiveSubscriptions]
         # Required when running under HTTPS:
         # allowed_hosts=['my_site.com']
     ),
@@ -91,14 +95,37 @@ BillsModelOut: t.Any = create_pydantic_model(
         Bills.payed,
     ),
 )
-BillingProfileModelOut: t.Any = create_pydantic_model(table=BillingProfile, model_name="BillingProfileModelOut", exclude_columns=(BillingProfile.balance, BillingProfile.created_at, BillingProfile.updated_at, BillingProfile.owner))
+BillingProfileModelOut: t.Any = create_pydantic_model(
+    table=BillingProfile,
+    model_name="BillingProfileModelOut",
+    exclude_columns=(
+        BillingProfile.balance,
+        BillingProfile.created_at,
+        BillingProfile.updated_at,
+        BillingProfile.owner,
+    ),
+)
 
-UserModelIn: t.Any = create_pydantic_model(table=BaseUser, model_name="UserModelIn", include_columns=(BaseUser.username, BaseUser.password, BaseUser.email, ))
-UserModelOut: t.Any = create_pydantic_model(table=BaseUser, model_name="UserModelOut", include_columns=(BaseUser.username, BaseUser.email, BaseUser.active))
+UserModelIn: t.Any = create_pydantic_model(
+    table=BaseUser,
+    model_name="UserModelIn",
+    include_columns=(
+        BaseUser.username,
+        BaseUser.password,
+        BaseUser.email,
+    ),
+)
+UserModelOut: t.Any = create_pydantic_model(
+    table=BaseUser,
+    model_name="UserModelOut",
+    include_columns=(BaseUser.username, BaseUser.email, BaseUser.active),
+)
+
 
 @docs(
     summary="Create user with billing profile",
-    responses={200: "User created", 400: "User already exists"}
+    responses={200: "User created", 400: "User already exists"},
+    tags=["Users & Auth"],
 )
 @app.router.post("/create_user")
 async def create_user(user_data: FromJSON[UserModelIn]) -> UserModelOut:
@@ -110,7 +137,9 @@ async def create_user(user_data: FromJSON[UserModelIn]) -> UserModelOut:
             await billing_profile.save()
         return UserModelOut(**user.to_dict())
     except UniqueViolationError:
-        return status_code(400, return_error("Failed to create user. user already exists."))
+        return status_code(
+            400, return_error("Failed to create user. user already exists.")
+        )
 
 
 @docs(
@@ -238,19 +267,48 @@ async def create_bill(user_id: int = 1, plan_id: int = 1):
 async def payment_page(payment_uuid: str) -> BillsModelOut:
     try:
         bill_query = await Bills.objects().where(Bills.uuid == payment_uuid).first()
+        if bill_query and bill_query.payment_status not in ['payed', 'in_progress']:
+             # Проверим синхронно, прошел ли платеж
+            # Эта функция может работать лучше, например, через вебхуки кассы.
+            payment = PaymentsHelper.get_payment_status(payment_uuid)
+            match payment:
+                case 'succeeded':
+                    payment_status = await bill_query.update(
+                        {
+                            Bills.payed: True
+                        }, force=True
+                    ).where(Bills.uuid == payment_uuid)
+                    payment_status = await Bills.select(Bills.plan.period.as_alias('period'), Bills.all_columns()).where(Bills.uuid == payment_uuid).first()
+                    due = datetime.now() + timedelta(days=payment_status['period'])
+                    profile = await BillingProfile.select(BillingProfile.id).where(BillingProfile.owner == payment_status['owner']).first()
+
+                    create_subscription = await ActiveSubscriptions.insert(
+                        ActiveSubscriptions(
+                            owner=payment_status['owner'],
+                            active_plan=payment_status['plan'],
+                            billing_profile=profile['id'],
+                            bill=payment_status['id'],
+                            due_to=due
+                        ))
+                    return payment_status
+                    # return BillsModelOut(**payment_status.to_dict())
         return BillsModelOut(**bill_query.to_dict())
+
     except AttributeError:
         return Response(404)
 
+
 @docs(
-        summary="Billing profile info",
-        description="This is an description of method",
-        responses={200: "Returns a text saying OpenAPI Example"},
-        tags=["Billing & Payments"],
-    )
+    summary="Billing profile info",
+    description="This is an description of method",
+    responses={200: "Returns a text saying OpenAPI Example"},
+    tags=["Billing & Payments"],
+)
 @app.router.get("/billing_profile/{user_id}")
 async def profile_info(user_id: int) -> BillingProfileModelOut:
-    user_info = await BillingProfile.objects().where(BillingProfile.owner == user_id).first()
+    user_info = (
+        await BillingProfile.objects().where(BillingProfile.owner == user_id).first()
+    )
     return BillingProfileModelOut(**user_info.to_dict())
 
 
