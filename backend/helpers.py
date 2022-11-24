@@ -2,7 +2,7 @@ import requests
 import config
 import yookassa
 from yookassa import Configuration, Payment
-from billing.tables import BillingProfile, BillingPlans, Bills
+from billing.tables import BillingProfile, BillingPlans, Bills, ActiveSubscriptions
 
 
 # Yookassa
@@ -23,10 +23,19 @@ class PaymentsHelper:
 class SubscriptionHelper:
     @staticmethod
     async def check_subscription(user_id: int) -> bool:
-        return await BillingProfile.objects().where(BillingProfile.owner == user_id)
+        """
+        Checks if user have an active subscription.
+        return: bool
+        """
+        active_subscription = await ActiveSubscriptions.select().where((ActiveSubscriptions.owner == user_id) & (ActiveSubscriptions.status == ActiveSubscriptions.Status.active))
+        return bool(active_subscription)
 
 
 def return_error(details: str) -> dict:
+    """
+    Text placeholder for error fallback in response
+    return: dict
+    """
     return {"error": True, "details": details}
 
 

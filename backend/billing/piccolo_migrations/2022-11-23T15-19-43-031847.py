@@ -70,7 +70,7 @@ class Bills(Table, tablename="bills"):
     )
 
 
-ID = "2022-11-21T18:42:07:593686"
+ID = "2022-11-23T15:19:43:031847"
 VERSION = "0.96.0"
 DESCRIPTION = ""
 
@@ -80,349 +80,13 @@ async def forwards():
         migration_id=ID, app_name="billing", description=DESCRIPTION
     )
 
-    manager.add_table("Bills", tablename="bills")
-
     manager.add_table("ActiveSubscriptions", tablename="active_plans")
 
     manager.add_table("BillingProfile", tablename="billing_profiles")
 
     manager.add_table("BillingPlans", tablename="billing_plans")
 
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="updated_at",
-        db_column_name="updated_at",
-        column_class_name="Timestamp",
-        column_class=Timestamp,
-        params={
-            "default": TimestampNow(),
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="created_at",
-        db_column_name="created_at",
-        column_class_name="Timestamp",
-        column_class=Timestamp,
-        params={
-            "default": TimestampNow(),
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="uuid",
-        db_column_name="uuid",
-        column_class_name="UUID",
-        column_class=UUID,
-        params={
-            "default": UUID4(),
-            "null": False,
-            "primary_key": False,
-            "unique": True,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="owner",
-        db_column_name="owner",
-        column_class_name="ForeignKey",
-        column_class=ForeignKey,
-        params={
-            "references": BaseUser,
-            "on_delete": OnDelete.cascade,
-            "on_update": OnUpdate.cascade,
-            "target_column": None,
-            "null": True,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="plan",
-        db_column_name="plan",
-        column_class_name="ForeignKey",
-        column_class=ForeignKey,
-        params={
-            "references": BillingPlans,
-            "on_delete": OnDelete.cascade,
-            "on_update": OnUpdate.cascade,
-            "target_column": None,
-            "null": True,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="amount",
-        db_column_name="amount",
-        column_class_name="Float",
-        column_class=Float,
-        params={
-            "default": 0.0,
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="in_progress",
-        db_column_name="in_progress",
-        column_class_name="Boolean",
-        column_class=Boolean,
-        params={
-            "default": True,
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="holded",
-        db_column_name="holded",
-        column_class_name="Boolean",
-        column_class=Boolean,
-        params={
-            "default": False,
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="expired",
-        db_column_name="expired",
-        column_class_name="Boolean",
-        column_class=Boolean,
-        params={
-            "default": False,
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="aborted",
-        db_column_name="aborted",
-        column_class_name="Boolean",
-        column_class=Boolean,
-        params={
-            "default": False,
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="payed",
-        db_column_name="payed",
-        column_class_name="Boolean",
-        column_class=Boolean,
-        params={
-            "default": False,
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="payment_data",
-        db_column_name="payment_data",
-        column_class_name="JSONB",
-        column_class=JSONB,
-        params={
-            "default": "{}",
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="next_checkout",
-        db_column_name="next_checkout",
-        column_class_name="Timestamp",
-        column_class=Timestamp,
-        params={
-            "default": TimestampNow(),
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="failed_attempts",
-        db_column_name="failed_attempts",
-        column_class_name="Integer",
-        column_class=Integer,
-        params={
-            "default": 0,
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="last_failed_attempt",
-        db_column_name="last_failed_attempt",
-        column_class_name="Timestamp",
-        column_class=Timestamp,
-        params={
-            "default": TimestampNow(),
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": None,
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
-
-    manager.add_column(
-        table_class_name="Bills",
-        tablename="bills",
-        column_name="payment_status",
-        db_column_name="payment_status",
-        column_class_name="Varchar",
-        column_class=Varchar,
-        params={
-            "length": 1,
-            "default": "",
-            "null": False,
-            "primary_key": False,
-            "unique": False,
-            "index": False,
-            "index_method": IndexMethod.btree,
-            "choices": Enum(
-                "Status",
-                {
-                    "expied": "expired",
-                    "aborted": "aborted",
-                    "holded": "holded",
-                    "payed": "payed",
-                    "in_progress": "in progress",
-                },
-            ),
-            "db_column_name": None,
-            "secret": False,
-        },
-    )
+    manager.add_table("Bills", tablename="bills")
 
     manager.add_column(
         table_class_name="ActiveSubscriptions",
@@ -564,7 +228,7 @@ async def forwards():
         column_class_name="Varchar",
         column_class=Varchar,
         params={
-            "length": 1,
+            "length": 15,
             "default": "",
             "null": False,
             "primary_key": False,
@@ -574,7 +238,7 @@ async def forwards():
             "choices": Enum(
                 "Status",
                 {
-                    "expied": "expired",
+                    "expired": "expired",
                     "aborted": "aborted",
                     "active": "active",
                     "blocked": "blocked",
@@ -865,6 +529,264 @@ async def forwards():
             "index": False,
             "index_method": IndexMethod.btree,
             "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="BillingPlans",
+        tablename="billing_plans",
+        column_name="trial",
+        db_column_name="trial",
+        column_class_name="Boolean",
+        column_class=Boolean,
+        params={
+            "default": False,
+            "null": False,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="updated_at",
+        db_column_name="updated_at",
+        column_class_name="Timestamp",
+        column_class=Timestamp,
+        params={
+            "default": TimestampNow(),
+            "null": False,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="created_at",
+        db_column_name="created_at",
+        column_class_name="Timestamp",
+        column_class=Timestamp,
+        params={
+            "default": TimestampNow(),
+            "null": False,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="uuid",
+        db_column_name="uuid",
+        column_class_name="UUID",
+        column_class=UUID,
+        params={
+            "default": UUID4(),
+            "null": False,
+            "primary_key": False,
+            "unique": True,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="owner",
+        db_column_name="owner",
+        column_class_name="ForeignKey",
+        column_class=ForeignKey,
+        params={
+            "references": BaseUser,
+            "on_delete": OnDelete.cascade,
+            "on_update": OnUpdate.cascade,
+            "target_column": None,
+            "null": True,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="plan",
+        db_column_name="plan",
+        column_class_name="ForeignKey",
+        column_class=ForeignKey,
+        params={
+            "references": BillingPlans,
+            "on_delete": OnDelete.cascade,
+            "on_update": OnUpdate.cascade,
+            "target_column": None,
+            "null": True,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="amount",
+        db_column_name="amount",
+        column_class_name="Float",
+        column_class=Float,
+        params={
+            "default": 0.0,
+            "null": False,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="payment_data",
+        db_column_name="payment_data",
+        column_class_name="JSONB",
+        column_class=JSONB,
+        params={
+            "default": "{}",
+            "null": False,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="next_checkout",
+        db_column_name="next_checkout",
+        column_class_name="Timestamp",
+        column_class=Timestamp,
+        params={
+            "default": TimestampNow(),
+            "null": False,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="failed_attempts",
+        db_column_name="failed_attempts",
+        column_class_name="Integer",
+        column_class=Integer,
+        params={
+            "default": 0,
+            "null": False,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="last_failed_attempt",
+        db_column_name="last_failed_attempt",
+        column_class_name="Timestamp",
+        column_class=Timestamp,
+        params={
+            "default": TimestampNow(),
+            "null": False,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": None,
+            "db_column_name": None,
+            "secret": False,
+        },
+    )
+
+    manager.add_column(
+        table_class_name="Bills",
+        tablename="bills",
+        column_name="status",
+        db_column_name="status",
+        column_class_name="Varchar",
+        column_class=Varchar,
+        params={
+            "length": 15,
+            "default": "",
+            "null": True,
+            "primary_key": False,
+            "unique": False,
+            "index": False,
+            "index_method": IndexMethod.btree,
+            "choices": Enum(
+                "Status",
+                {
+                    "expied": "expired",
+                    "cancelled": "cancelled",
+                    "holded": "holded",
+                    "paid": "paid",
+                    "pending": "pending",
+                    "in_progress": "in progress",
+                    "timeout": "timeout",
+                },
+            ),
             "db_column_name": None,
             "secret": False,
         },

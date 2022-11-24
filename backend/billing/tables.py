@@ -44,25 +44,22 @@ class Bills(Table, DefaultFields, tablename="bills"):
 
     class Status(str, Enum):
         expied = "expired"
-        aborted = "aborted"
+        cancelled = "cancelled"
         holded = "holded"
-        payed = "payed"
+        paid = "paid"
+        pending = "pending"
         in_progress = "in progress"
+        timeout = "timeout"
 
     uuid = UUID(unique=True)
     owner = ForeignKey(BaseUser)
     plan = ForeignKey(BillingPlans)
     amount = Float()
-    in_progress = Boolean(default=True)
-    holded = Boolean(default=False)
-    expired = Boolean(default=False)
-    aborted = Boolean(default=False)
-    payed = Boolean(default=False)
     payment_data = JSONB(required=False)
     next_checkout = Timestamp(required=False)
     failed_attempts = Integer(default=0)
     last_failed_attempt = Timestamp(required=False)
-    payment_status = Varchar(length=1, choices=Status, null=True)
+    status = Varchar(length=15, choices=Status, null=True)
 
     @classmethod
     def make_fail(self):
@@ -85,23 +82,18 @@ class BillingProfile(
     uuid = UUID(unique=True)
     owner = ForeignKey(BaseUser)
     balance = Float(default=0.0)
-    # active_plan = ForeignKey(BillingPlans, null=True)
-    # active_bill = ForeignKey(Bills, null=True)
-    # plan_end = Timestamp(null=True)
-    # active = Boolean(default=False)
 
 
 class ActiveSubscriptions(Table, DefaultFields, tablename="active_plans"):
     class Status(str, Enum):
-        expied = "expired"
+        expired = "expired"
         aborted = "aborted"
         active = "active"
         blocked = "blocked"
-        succeeded = "succeeded"
 
     owner = ForeignKey(BaseUser)
     active_plan = ForeignKey(BillingPlans)
     billing_profile = ForeignKey(BillingProfile)
     bill = ForeignKey(Bills)
-    status = Varchar(length=1, choices=Status)
+    status = Varchar(length=15, choices=Status)
     due_to = Timestamp()

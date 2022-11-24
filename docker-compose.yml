@@ -27,6 +27,7 @@ services:
     restart: always
     container_name: rqworker
     environment:
+      TZ: Europe/Moscow
       PG_HOST: database
       PG_PORT: 5432
       PG_DB_NAME: piccolo_dev
@@ -46,6 +47,7 @@ services:
     restart: always
     container_name: rqscheduler
     environment:
+      TZ: Europe/Moscow
       INTERVAL: 10
     volumes:
       - ./backend:/app

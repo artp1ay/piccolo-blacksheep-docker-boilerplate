@@ -1,9 +1,19 @@
 import os
+# from dotenv import load_dotenv
+#
+# load_dotenv()
 
 # Possibly environments: DEV, PROD, TEST
+PROJECT_NAME = "Qiobi"
 ENVIRONMENT = "DEV"
 ALLOWED_HOSTS = ["*"]
+
 DOMAIN = 'qiobi.ru'
+
+# INSTANCE INFO
+COMPANY_ADDRESS = '115280, Москва, Ленинская Слобода 19, БЦ "Омега плаза", офис 1'
+UNSUSCRIBE_ENDPOINT = "/unsuscribe"
+COPYRIGHT = "Все права защищены."
 
 # DATABASE
 match ENVIRONMENT:
@@ -42,11 +52,14 @@ BOT_TOKEN = ""
 ADMIN_CHAT_ID = ""
 
 # SMTP SERVER
-SHMTP_ENABLED = True
+SMTP_ENABLED = True
+SMTP_DEBUG = True
+SMTP_MAIL = "helpdesk@evolan.ru"
 SMTP_HOST = "smtp.yandex.ru"
-SMTP_LOGIN = ""
-SMTP_PORT = 25
-SMTP_PASSWORD = ""
+SMTP_LOGIN = "helpdesk@evolan.ru"
+SMTP_PORT = 465
+SMTP_SSL = True
+SMTP_PASSWORD = "clqnthulwbnecwwu"
 SMTL_TLS = False
 
 # RabbitMQ
@@ -60,6 +73,7 @@ REDIS_PORT = 6379
 WORKERS_QTY = 3
 
 # PAYMENTS
+PAYMENT_TIMEOUT_HOURS = 24
 
 # YOOKASSA
 YOOKASSA_ACCOUNT_ID = "959710"

@@ -1,13 +1,17 @@
 import typing as t
 import config
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from piccolo.engine import engine_finder
 from yookassa import Configuration, Payment
+from mailer.events import subscription_expired
 
 from home.tables import Task
-from billing.tables import BillingProfile, BillingPlans, Bills
+from piccolo.apps.user.tables import BaseUser
+from billing.tables import BillingProfile, BillingPlans, Bills, ActiveSubscriptions
+
+from rq import Queue, Connection
 
 # Yookassa
 Configuration.account_id = config.YOOKASSA_ACCOUNT_ID
@@ -22,7 +26,7 @@ async def check_payment_statuses():
     """
     unpaid_bills = (
         await Bills.objects()
-        .where(Bills.in_progress == True)
+        .where(Bills.status == Bills.Status.pending)
         .order_by(Bills.created_at)
     )
 
@@ -47,24 +51,32 @@ async def check_payment_statuses():
             case _:
                 print(payment.json())
 
-    # Payment.cancel('21b23b5b-000f-5061-a000-0674e49a8c10')
+def cancel_expired_subscriptions():
+    """
+    Check if subscription expired.
+    If expired, update record.
+    """
+    active_subscriptions = ActiveSubscriptions.update(
+        {
+            ActiveSubscriptions.status: ActiveSubscriptions.Status.expired
+        }
+    ).where(
+        (ActiveSubscriptions.status == ActiveSubscriptions.Status.active) & (datetime.now() >= ActiveSubscriptions.due_to)
+    ).returning(ActiveSubscriptions.id, ActiveSubscriptions.owner).run_sync()
+
+    # Send notification
+    if active_subscriptions:
+        owner_info = BaseUser.select(BaseUser.email).where(BaseUser.id == active_subscriptions[0]['owner']).first().run_sync()
+        subscription_expired(owner_info['email'])
 
 
-async def get_tasks_another():
-    tq = await Task.select().order_by(Task.id)
-    return tq
-
-
-async def insert_tasks(count: int = 1):
-    for count, _ in enumerate(range(1, count), start=1):
-        await Task.insert(Task(name=f"Task number {count}"))
-
-
-async def edit_tasks():
-    queryset = await Task.select().where(Task.completed == False).order_by(Task.id)
-    for q in queryset:
-        await Task.update({Task.completed: True}).where(Task.id == q["id"])
-
-
-if __name__ == "__main__":
-    asyncio.run(check_payment_statuses())
+async def cleanup_unpaid_transactions():
+    """
+    Periodic task.
+    Cancel payments which had never been paid a long time.
+    """
+    timeout = datetime.now() - timedelta(hours=config.PAYMENT_TIMEOUT_HOURS)
+    transactions = await Bills.update({Bills.status: Bills.Status.timeout}).where((Bills.last_failed_attempt <= timeout) & (Bills.status == Bills.Status.pending)).returning(
+        Bills.id
+    )
+    print(transactions)

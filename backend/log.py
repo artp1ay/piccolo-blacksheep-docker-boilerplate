@@ -5,8 +5,8 @@ from loguru import logger
 
 config = {
 	"handlers": [
-		{"sink": sys.stdout, "format": "{time} {level} {message}", "level": "DEBUG"},
-		{"sink": "app.log", "serialize": False, "format": "{time} {level} {message}"},
+		# {"sink": sys.stdout, "format": "{time} {level} {message}", "level": "DEBUG"},
+		# {"sink": "app.log", "serialize": False, "format": "{time} {level} {message}"},
 	],
 }
 

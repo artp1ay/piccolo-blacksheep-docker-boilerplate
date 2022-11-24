@@ -2,12 +2,10 @@ import sys
 from subprocess import call
 import uuid
 import config
-
 import typing as t
 
 from piccolo_admin.endpoints import create_admin
 from piccolo_admin.endpoints import TableConfig
-from piccolo_api.crud.serializers import create_pydantic_model
 from piccolo.engine import engine_finder
 
 from blacksheep import Response, Content
@@ -26,17 +24,21 @@ from openapidocs.v3 import Info
 from home.endpoints import home
 from home.piccolo_app import APP_CONFIG
 from piccolo.apps.user.tables import BaseUser
-from home.tables import Task
 from billing.tables import BillingProfile, BillingPlans, Bills, ActiveSubscriptions
+from structs import (
+    BillingProfileModelOut,
+    UserModelIn,
+    UserModelOut,
+    BillsModelOut,
+    ActiveSubscriptionsModelOut,
+)
 
 from yookassa import Configuration, Payment
-from pprint import pprint
 from datetime import datetime, timedelta
 from helpers import PaymentsHelper, SubscriptionHelper, return_error
 from asyncpg.exceptions import UniqueViolationError
+from mailer.events import register_user
 
-# from q import queue
-# from tasks import get_tasks
 
 # Yookassa
 Configuration.account_id = config.YOOKASSA_ACCOUNT_ID
@@ -49,7 +51,7 @@ movie_config = TableConfig(BillingProfile, visible_columns=[BillingProfile.id])
 app.mount(
     "/admin/",
     create_admin(
-        [Task, BillingProfile, BillingPlans, Bills, ActiveSubscriptions]
+        [BillingProfile, BillingPlans, Bills, ActiveSubscriptions]
         # Required when running under HTTPS:
         # allowed_hosts=['my_site.com']
     ),
@@ -57,8 +59,6 @@ app.mount(
 
 docs = OpenAPIHandler(info=Info(title="Saas Boilerplate API", version="0.0.1"))
 docs.bind_app(app)
-app.serve_files("static", root_path="/static")
-app.router.add_get("/", home)
 
 
 # Task Handlers
@@ -68,58 +68,14 @@ async def after_start(application: Application) -> None:
     from executor import periodic_tasks
 
 
-# @app.on_stop
-# async def on_stop(application: Application) -> None:
-#     from executor import scheduler
-#     for job in periodic_tasks:
-#         print(job)
-#         scheduler.cancel(job)
+@app.on_stop
+async def on_stop(application: Application) -> None:
+    from executor import regular_queue, periodic_queue
 
-
-TaskModelIn: t.Any = create_pydantic_model(table=Task, model_name="TaskModelIn")
-TaskModelOut: t.Any = create_pydantic_model(
-    table=Task, include_default_columns=True, model_name="TaskModelOut"
-)
-TaskModelPartial: t.Any = create_pydantic_model(
-    table=Task, model_name="TaskModelPartial", all_optional=True
-)
-
-BillsModelOut: t.Any = create_pydantic_model(
-    table=Bills,
-    model_name="BillsModelOut",
-    include_columns=(
-        Bills.uuid,
-        Bills.created_at,
-        Bills.plan,
-        Bills.amount,
-        Bills.payed,
-    ),
-)
-BillingProfileModelOut: t.Any = create_pydantic_model(
-    table=BillingProfile,
-    model_name="BillingProfileModelOut",
-    exclude_columns=(
-        BillingProfile.balance,
-        BillingProfile.created_at,
-        BillingProfile.updated_at,
-        BillingProfile.owner,
-    ),
-)
-
-UserModelIn: t.Any = create_pydantic_model(
-    table=BaseUser,
-    model_name="UserModelIn",
-    include_columns=(
-        BaseUser.username,
-        BaseUser.password,
-        BaseUser.email,
-    ),
-)
-UserModelOut: t.Any = create_pydantic_model(
-    table=BaseUser,
-    model_name="UserModelOut",
-    include_columns=(BaseUser.username, BaseUser.email, BaseUser.active),
-)
+    for job in regular_queue:
+        job.empty()
+    for job in periodic_queue:
+        job.empty()
 
 
 @docs(
@@ -129,12 +85,16 @@ UserModelOut: t.Any = create_pydantic_model(
 )
 @app.router.post("/create_user")
 async def create_user(user_data: FromJSON[UserModelIn]) -> UserModelOut:
-    print(user_data)
     try:
         user = await BaseUser.create_user(**user_data.value.dict(), active=True)
         billing_profile = BillingProfile(owner=user.id)
         if user:
             await billing_profile.save()
+
+            # Sending Email
+            user_data = user.to_dict()
+            register_user(email_to=user_data['email'], username=user_data['username'])
+
         return UserModelOut(**user.to_dict())
     except UniqueViolationError:
         return status_code(
@@ -142,80 +102,28 @@ async def create_user(user_data: FromJSON[UserModelIn]) -> UserModelOut:
         )
 
 
-@docs(
-    summary="This is an summary",
-    description="This is an description of method",
-    responses={200: "Returns a text saying OpenAPI Example"},
-)
-@app.router.get("/tasks/")
-async def tasks() -> t.List[TaskModelOut]:
-    q = await Task.select().order_by(Task.id)
-    # queue.enqueue(print, q[0]['name'])
-    # queue.enqueue(get_tasks)
-    return q
-
-
-@app.router.post("/tasks/")
-async def create_task(task_model: FromJSON[TaskModelIn]) -> TaskModelOut:
-    task = Task(**task_model.value.dict())
-    await task.save()
-    return TaskModelOut(**task.to_dict())
-
-
-@app.router.put("/tasks/{task_id}/")
-async def put_task(task_id: int, task_model: FromJSON[TaskModelIn]) -> TaskModelOut:
-    task = await Task.objects().get(Task.id == task_id)
-    if not task:
-        return json({}, status=404)
-
-    for key, value in task_model.value.dict().items():
-        setattr(task, key, value)
-
-    await task.save()
-
-    return TaskModelOut(**task.to_dict())
-
-
-@app.router.patch("/tasks/{task_id}/")
-async def patch_task(
-    task_id: int, task_model: FromJSON[TaskModelPartial]
-) -> TaskModelOut:
-    task = await Task.objects().get(Task.id == task_id)
-    if not task:
-        return json({}, status=404)
-
-    for key, value in task_model.value.dict().items():
-        if value is not None:
-            setattr(task, key, value)
-
-    await task.save()
-
-    return TaskModelOut(**task.to_dict())
-
-
-@app.router.delete("/tasks/{task_id}/")
-async def delete_task(task_id: int):
-    task = await Task.objects().get(Task.id == task_id)
-    if not task:
-        return json({}, status=404)
-
-    await task.remove()
-
-    return json({})
-
-
 # Payments
 @docs(
     summary="Creating link for payment",
-    description="This is an description of method",
-    responses={200: "Returns a text saying OpenAPI Example"},
+    description="Creates a link to make a payment in the YooKassa service if the user does not have an active subscription. ",
+    responses={
+        200: "Sucessfuly created payment",
+        408: "Usucessful status response from payment gateway",
+        406: "User already have an active subscription",
+    },
     tags=["Billing & Payments"],
 )
-@app.router.post("/create_payment")
+@app.router.put("/create_payment")
 async def create_bill(user_id: int = 1, plan_id: int = 1):
 
-    plan_query = await BillingPlans.objects().where(BillingPlans.id == plan_id).first()
+    # Check if the user has an active subscription
+    # If there is an active subscription, we return the error response
+    if await SubscriptionHelper.check_subscription(user_id):
+        return status_code(
+            400, return_error(f"User alredy have an active subscription.")
+        )
 
+    plan_query = await BillingPlans.objects().where(BillingPlans.id == plan_id).first()
     payment = Payment.create(
         {
             "amount": {"value": plan_query.amount, "currency": "RUB"},
@@ -240,12 +148,6 @@ async def create_bill(user_id: int = 1, plan_id: int = 1):
             )
         )
 
-        # Remove all unsuccessful payments by today
-        # unsucessful_payments = await Bills.delete().where(
-        #     Bills.in_progress == True,
-        #     Bills.owner == user_id,
-        # )
-
         return json(
             {
                 "status": "success",
@@ -254,7 +156,44 @@ async def create_bill(user_id: int = 1, plan_id: int = 1):
             }
         )
     else:
-        return json({"error": "Usucessful status response from payment gateway"})
+        return status_code(
+            408, return_error(f"Usucessful status response from payment gateway")
+        )
+
+
+@docs(
+    summary="Subscription info",
+    responses={
+        200: "Returns active user subscription",
+    },
+    tags=["Subscriptions"],
+)
+@app.router.get("/subscription/{user_id}")
+async def get_subscription(user_id: int) -> ActiveSubscriptionsModelOut:
+    subscription = (
+        await ActiveSubscriptions.select()
+        .where(
+            (ActiveSubscriptions.owner == user_id)
+            & (ActiveSubscriptions.status == ActiveSubscriptions.Status.active)
+        )
+        .order_by(ActiveSubscriptions.due_to, ascending=False)
+        .first()
+    )
+    if subscription:
+        return ActiveSubscriptionsModelOut(**subscription)
+    else:
+        return {"response": "no subscription"}
+
+
+@docs(summary="List of all subscriptions", tags=["Subscriptions"])
+@app.router.get("/subscriptions_list/{user_id}")
+async def subscriptions_list(user_id: int) -> t.List[ActiveSubscriptionsModelOut]:
+    subscriptions = (
+        await ActiveSubscriptions.select()
+        .where(ActiveSubscriptions.owner == user_id)
+        .order_by(ActiveSubscriptions.status)
+    )
+    return [ActiveSubscriptionsModelOut(**sub) for sub in subscriptions]
 
 
 @docs(
@@ -267,35 +206,113 @@ async def create_bill(user_id: int = 1, plan_id: int = 1):
 async def payment_page(payment_uuid: str) -> BillsModelOut:
     try:
         bill_query = await Bills.objects().where(Bills.uuid == payment_uuid).first()
-        if bill_query and bill_query.payment_status not in ['payed', 'in_progress']:
-             # Проверим синхронно, прошел ли платеж
-            # Эта функция может работать лучше, например, через вебхуки кассы.
+        if bill_query and bill_query.status not in [
+            Bills.Status.paid,
+            Bills.Status.in_progress,
+        ]:
+
+            # Check in sync if the payment was successful
+            # This feature may work better, for example, through the webhooks of the yookassa
             payment = PaymentsHelper.get_payment_status(payment_uuid)
+            print(payment)
             match payment:
-                case 'succeeded':
+                case "succeeded":
                     payment_status = await bill_query.update(
                         {
-                            Bills.payed: True
-                        }, force=True
+                            Bills.status: Bills.Status.paid,
+                        },
+                        force=True,
                     ).where(Bills.uuid == payment_uuid)
-                    payment_status = await Bills.select(Bills.plan.period.as_alias('period'), Bills.all_columns()).where(Bills.uuid == payment_uuid).first()
-                    due = datetime.now() + timedelta(days=payment_status['period'])
-                    profile = await BillingProfile.select(BillingProfile.id).where(BillingProfile.owner == payment_status['owner']).first()
+                    payment_status = (
+                        await Bills.select(
+                            Bills.plan.period.as_alias("period"), Bills.all_columns()
+                        )
+                        .where(Bills.uuid == payment_uuid)
+                        .first()
+                    )
+                    due = datetime.now() + timedelta(days=payment_status["period"])
+                    profile = (
+                        await BillingProfile.select(BillingProfile.id)
+                        .where(BillingProfile.owner == payment_status["owner"])
+                        .first()
+                    )
 
-                    create_subscription = await ActiveSubscriptions.insert(
-                        ActiveSubscriptions(
-                            owner=payment_status['owner'],
-                            active_plan=payment_status['plan'],
-                            billing_profile=profile['id'],
-                            bill=payment_status['id'],
-                            due_to=due
-                        ))
-                    return payment_status
+                    # Checking if active subscription not exists, if not then create
+                    if not await ActiveSubscriptions.select(
+                        ActiveSubscriptions.all_columns(), ActiveSubscriptions.bill.uuid
+                    ).where(
+                        (ActiveSubscriptions.bill.uuid == payment_uuid)
+                        & (
+                            ActiveSubscriptions.status
+                            == ActiveSubscriptions.Status.active
+                        )
+                    ):
+                        create_subscription = await ActiveSubscriptions.insert(
+                            ActiveSubscriptions(
+                                owner=payment_status["owner"],
+                                active_plan=payment_status["plan"],
+                                billing_profile=profile["id"],
+                                bill=payment_status["id"],
+                                status=ActiveSubscriptions.Status.active,
+                                due_to=due,
+                            )
+                        )
+                    return BillsModelOut(**payment_status)
+
+                case "pending":
+                    if bill_query.status != Bills.Status.pending:
+                        bill_query = (
+                            await Bills.update({Bills.status: Bills.Status.pending})
+                            .where(Bills.uuid == payment_uuid)
+                            .returning(
+                                Bills.created_at, Bills.plan, Bills.amount, Bills.status
+                            )
+                        )
+                        return BillsModelOut(**bill_query[0])
+
+                    # raise ValueError("This is an error of create_subscription")
                     # return BillsModelOut(**payment_status.to_dict())
         return BillsModelOut(**bill_query.to_dict())
 
     except AttributeError:
-        return Response(404)
+        return status_code(404, return_error("Payment not found"))
+
+
+@docs(
+    summary="Cancel payment by its UUID",
+    responses={
+        200: "Successful cancel payment by its UUID",
+        403: "Payment have not match requirement status and cannot be cacnelled.",
+        404: "Payment not found",
+    },
+    tags=["Billing & Payments"],
+)
+@app.router.delete("/cancel_payment/{payment_uuid}")
+async def cancel_payment(payment_uuid: str) -> BillsModelOut:
+    try:
+        payment = await Bills.objects().where(Bills.uuid == payment_uuid).first()
+        if not payment.status or payment.status not in (
+            Bills.Status.paid,
+            Bills.Status.cancelled,
+        ):
+            print(payment)
+            payment = (
+                await Bills.update({Bills.status: Bills.Status.cancelled})
+                .where(Bills.uuid == payment_uuid)
+                .returning(Bills.created_at, Bills.plan, Bills.amount, Bills.status)
+            )
+            print(payment)
+            return BillsModelOut(**payment[0])
+        else:
+            return status_code(
+                403,
+                return_error(
+                    "Payment have not match requirement status and cannot be cacnelled."
+                ),
+            )
+    except AttributeError as e:
+        print(e)
+        return status_code(404, return_error("Payment not found"))
 
 
 @docs(
@@ -310,6 +327,19 @@ async def profile_info(user_id: int) -> BillingProfileModelOut:
         await BillingProfile.objects().where(BillingProfile.owner == user_id).first()
     )
     return BillingProfileModelOut(**user_info.to_dict())
+
+
+# Payment hook
+@app.router.get("/test")
+async def test_endpoint():
+    req = await ActiveSubscriptions.select(
+        ActiveSubscriptions.all_columns(), ActiveSubscriptions.bill.uuid
+    ).where(
+        (ActiveSubscriptions.bill.uuid == "2b0ee4ab-000f-5000-9000-1fa2b67816e9")
+        & (ActiveSubscriptions.status == ActiveSubscriptions.Status.active)
+    )
+    print(req)
+    return {"status": "done"}
 
 
 # Payment hook
